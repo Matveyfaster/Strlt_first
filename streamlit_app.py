@@ -56,64 +56,7 @@ op_stat = '''
 
 st.write(op_stat,  unsafe_allow_html=True)
 df = pd.read_csv('titanic.csv')
-st.write(len(df.columns))
-df
-# Обработка данных
-mini_df = df[['Age','SibSp']].dropna().reset_index(drop=True)
-
-st.write("<p><strong>Зависимость количества родственников от возраста</strong></p>", unsafe_allow_html=True)
-# График зависимости между Age и SibSp
-st.scatter_chart(mini_df, x='Age', y='SibSp')
-# ## Преобразование Cabin в бинарный признак
-# df['Has_Cabin'] = df['Cabin'].notna().astype(int)
-
-
-
-
-# Фильтрация данных по выбранному полу
-selected_sex = st.selectbox(
-    "Выберите пол:",
-    options=df['Sex'].unique(),
-    index=0  # По умолчанию показываем мужчин
-)
-
-filtered_df = df[df['Sex'] == selected_sex].dropna(subset=['Pclass', 'Survived'])
-
-# Группировка данных по классу каюты и статусу выживания
-status_counts = filtered_df.groupby(['Pclass', 'Survived']).size().reset_index(name='Количество')
-
-# Построение графика с группированными столбиками
-fig = px.bar(
-    status_counts,
-    x='Pclass',
-    y='Количество',
-    color='Survived',
-    barmode='group',
-    color_discrete_sequence=['red', 'green'],  # Красный для погибших, зелёный для выживших
-    labels={
-        'Pclass': 'Класс каюты',
-        'Survived': 'Статус',  # Будет заменён на 0 и 1
-        'Количество': 'Количество пассажиров'
-    },
-    title=f"Количество погибших и выживших по классу каюты ({selected_sex})",
-    category_orders={'Survived': [0, 1]}  # Упорядочиваем статусы (0 → 1)
-)
-
-# Настройка легенды
-fig.update_layout(
-    legend=dict(
-        title=None,  # Убираем заголовок "Статус"
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="right",
-        x=1
-    )
-)
-
-# Вывод графика в Streamlit
-st.plotly_chart(fig)
-
+st.dataframe(df.describe())
 
 
 
@@ -123,6 +66,12 @@ df['Has_Cabin'] = df['Cabin'].notna().astype(int)
 # Группировка данных
 cabin_counts = df.groupby(['Has_Cabin', 'Survived']).size().reset_index(name='Количество')
 
+# Переименовываем значения, чтобы легенда была понятнее
+cabin_counts['Survived'] = cabin_counts['Survived'].map({0: 'Погиб', 1: 'Выжил'})
+
+# Определяем цвета для легенды
+colors = {'Погиб': 'red', 'Выжил': 'green'}
+
 # Построение графика
 fig = px.bar(
     cabin_counts,
@@ -130,13 +79,13 @@ fig = px.bar(
     y='Количество',
     color='Survived',
     barmode='group',
-    color_discrete_sequence=['red', 'green'],
+    color_discrete_map=colors,  # Задаем цвета для легенды
     labels={
         'Has_Cabin': 'Наличие каюты\n(1 — есть, 0 — нет)',
         'Survived': 'Статус выживания',
         'Количество': 'Количество пассажиров'
     },
-    title='Выживаемость в зависимости от наличия каюты'
+    title='Выживаемость в зависимости от наличия каюты в таблице'
 )
 
 # Настройка легенды
@@ -148,7 +97,8 @@ fig.update_layout(
         y=1.02,
         xanchor="right",
         x=1
-    )
+    ),
+    coloraxis_showscale=False  # Убираем градиент
 )
 
 # Вывод графика
@@ -157,13 +107,27 @@ st.plotly_chart(fig)
 
 
 
-# Гистограмма возрастов
-st.subheader("Распределение возрастов пассажиров")
-age_hist = df[['Age']].dropna()
-fig = px.histogram(age_hist, x='Age', nbins=20, title='Распределение возрастов')
-fig.update_layout(xaxis_title='Возраст', yaxis_title='Количество пассажиров')
-st.plotly_chart(fig, key="age_hist")
+# Обработка пропущенных значений
+df_no_na = df.dropna(subset=['Age', 'SibSp'])
 
+# Создание графика "ящик с усами"
+fig = px.box(
+    df_no_na,
+    x="Age",  # Возраст по горизонтали
+    y="SibSp",  # Количество родственников по вертикали
+    orientation='h',  # Горизонтальное расположение ящиков
+    title="Зависимость количества родственников от возраста",
+    labels={"SibSp": "Количество родственников", "Age": "Возраст"},
+)
+
+# Настройка графика (необязательно)
+fig.update_layout(
+    yaxis=dict(title_standoff=25)  # Отступ для названия оси Y
+)
+
+
+# Вывод графика в Streamlit
+st.plotly_chart(fig)
 
 
 
@@ -225,8 +189,67 @@ st.plotly_chart(fig, key="interactive_scatter")
 
 
 
+# Создаем копию датафрейма без пропусков
+mini_df = df[['Age', 'Fare', 'SibSp', 'Survived', 'Name', 'Sex']].dropna()
+
+# Назначаем цвета в зависимости от выживания
+mini_df['Color'] = mini_df['Survived'].map({0: 'погиб', 1: 'выжил'})
+
+# Создаем 3D-график без цветовой шкалы
+fig = px.scatter_3d(
+    mini_df,
+    x='Age',
+    y='Fare',
+    z='SibSp',
+    color= 'Color',
+    hover_data=['Name', 'Sex'],
+    title='Выживаемость в зависимости от возраста, стоимости билета и родственников',
+    labels={
+        'Age': 'Возраст',
+        'Fare': 'Стоимость билета',
+        'SibSp': 'Количество родственников',
+        'Color': 'Выжил'
+    }
+)
+
+
+# Настройка размера и цвета точек
+fig.update_traces(
+    marker=dict(
+        size=3,  # Маленькие точки
+        line=dict(width=0.5, color='DarkSlateGrey'),  # Чёрная обводка
+        opacity=0.8  # Прозрачность
+    )
+)
+
+# Скрываем цветовую шкалу
+fig.update_layout(
+    coloraxis_showscale=False,
+    scene = dict(
+        xaxis_title='Возраст',
+        yaxis_title='Стоимость билета',
+        zaxis_title='Количество родственников'
+    ),
+    width=800,
+    height=600,
+    hoverlabel=dict(
+        bgcolor="white",
+        font_size=12,
+        font_family="Arial"
+    )
+)
+
+# Отображение графика
+st.plotly_chart(fig)
+
+
+
 # Слайдер для выбора количества строк
 x = st.slider('Количество строк', min_value=1, max_value=len(df), value=5)
 
 # Вывод таблицы с выбранным количеством строк
 st.write(df.head(x))
+
+
+
+
